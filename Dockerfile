@@ -33,14 +33,22 @@ ENV TZ=UTC
 RUN addgroup -g 1001 nginx-group \
     && adduser -u 1001 -G nginx-group -D -H nginx-user \
     # Create required directories with proper permissions
-    && mkdir -p /var/cache/nginx /var/run /var/log/nginx /var/lib/nginx \
+    && mkdir -p /var/cache/nginx /var/run/nginx /var/log/nginx /var/lib/nginx /tmp/nginx/client_temp \
+    # Set permissions
     && chown -R nginx-user:nginx-group /var/cache/nginx \
-    && chown -R nginx-user:nginx-group /var/run \
+    && chown -R nginx-user:nginx-group /var/run/nginx \
     && chown -R nginx-user:nginx-group /var/log/nginx \
     && chown -R nginx-user:nginx-group /var/lib/nginx \
-    && chmod -R 755 /var/cache/nginx /var/run /var/log/nginx /var/lib/nginx
+    && chown -R nginx-user:nginx-group /tmp/nginx \
+    # Set directory permissions
+    && chmod -R 755 /var/cache/nginx \
+    && chmod -R 755 /var/run/nginx \
+    && chmod -R 755 /var/log/nginx \
+    && chmod -R 755 /var/lib/nginx \
+    && chmod -R 755 /tmp/nginx
 
 # Copy nginx config
+COPY nginx.conf /etc/nginx/nginx.conf
 COPY --chown=nginx-user:nginx-group nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy built assets from builder stage
@@ -64,5 +72,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
 # Run as non-root user
 USER nginx-user
 
-# Start Nginx with debug logging
-CMD ["nginx", "-g", "daemon off; error_log /dev/stderr debug;"]
+# Set environment variables for Nginx
+ENV NGINX_PID_FILE=/tmp/nginx/nginx.pid
+
+# Start Nginx with custom configuration
+CMD ["nginx", "-g", "daemon off; error_log /dev/stderr debug; pid /tmp/nginx/nginx.pid;"]

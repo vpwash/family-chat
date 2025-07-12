@@ -5,32 +5,31 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      # Enable buildkit for better caching and layer optimization
       args:
         - NODE_ENV=production
     container_name: family-chat
     restart: unless-stopped
     ports:
-      - "${PORT:-80}:80"  # Default to port 80
+      - "${PORT:-80}:80"
     environment:
       - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
       - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
       - NODE_ENV=production
       - PORT=80
+      - NGINX_PID_FILE=/tmp/nginx/nginx.pid
     # Run as non-root user (UID 1001)
     user: "1001:1001"
-    # Health check configuration
+    # Health check
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
-    # Network configuration
     networks:
       - family-chat-network
     # Nginx runs in the foreground with debug logging
-    command: ["nginx", "-g", "daemon off; error_log /dev/stderr debug;"]
+    command: ["nginx", "-g", "daemon off; error_log /dev/stderr debug; pid /tmp/nginx/nginx.pid;"]
     # Ensure proper shutdown handling
     stop_grace_period: 10s
     stop_signal: SIGQUIT
@@ -46,12 +45,12 @@ services:
     security_opt:
       - no-new-privileges:true
     read_only: true
-    # Required writable directories for Nginx as tmpfs
+    # Required writable directories for Nginx
     tmpfs:
       - /var/cache/nginx
-      - /var/run
+      - /var/run/nginx
       - /var/log/nginx
-      - /tmp
+      - /tmp/nginx
     # Minimal capabilities required for Nginx to run as non-root
     cap_drop:
       - ALL

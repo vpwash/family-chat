@@ -1,5 +1,5 @@
-# Build stage
-FROM node:18-alpine as build
+# Stage 1: Build the application
+FROM node:20-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -19,7 +19,7 @@ COPY . .
 # Build the application
 RUN npm run build
 
-# Production stage
+# Stage 2: Production image with Nginx
 FROM nginx:stable-alpine
 
 # Install runtime dependencies
@@ -29,30 +29,26 @@ RUN apk add --no-cache tzdata \
 # Set timezone (optional)
 ENV TZ=UTC
 
-# Create required directories and set permissions
-RUN mkdir -p /var/cache/nginx /var/run /var/log/nginx /var/lib/nginx \
-    && chmod -R 755 /var/cache/nginx /var/run /var/log/nginx /var/lib/nginx
-
 # Create non-root user and group
 RUN addgroup -g 1001 nginx-group \
-    && adduser -D -u 1001 -G nginx-group nginx-user \
+    && adduser -u 1001 -G nginx-group -D -H nginx-user \
+    # Create required directories with proper permissions
+    && mkdir -p /var/cache/nginx /var/run /var/log/nginx /var/lib/nginx \
     && chown -R nginx-user:nginx-group /var/cache/nginx \
     && chown -R nginx-user:nginx-group /var/run \
     && chown -R nginx-user:nginx-group /var/log/nginx \
-    && chown -R nginx-user:nginx-group /var/lib/nginx
+    && chown -R nginx-user:nginx-group /var/lib/nginx \
+    && chmod -R 755 /var/cache/nginx /var/run /var/log/nginx /var/lib/nginx
 
 # Copy nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --chown=nginx-user:nginx-group nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy built assets from build stage
-COPY --from=build /app/dist /usr/share/nginx/html
+# Copy built assets from builder stage
+COPY --from=builder --chown=nginx-user:nginx-group /app/dist /usr/share/nginx/html
 
-# Set proper permissions
-RUN chown -R nginx-user:nginx-group /usr/share/nginx/html \
-    && chmod -R 755 /usr/share/nginx/html \
-    && chmod -R 755 /var/log/nginx \
-    && chmod -R 755 /var/cache/nginx \
-    && chmod -R 755 /var/run
+# Set proper permissions for Nginx files
+RUN chmod -R 755 /usr/share/nginx/html \
+    && find /usr/share/nginx/html -type f -exec chmod 644 {} \;
 
 # Remove default nginx static assets
 RUN rm -rf /usr/share/nginx/html/*.md \

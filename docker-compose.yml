@@ -5,6 +5,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # Enable buildkit for better caching and layer optimization
+      args:
+        - NODE_ENV=production
     container_name: family-chat
     restart: unless-stopped
     ports:
@@ -14,16 +17,19 @@ services:
       - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
       - NODE_ENV=production
       - PORT=80
-    user: "1001:1001"  # Run as non-root user
+    # Run as non-root user (UID 1001)
+    user: "1001:1001"
+    # Health check configuration
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
+    # Network configuration
     networks:
       - family-chat-network
-    # Ensure Nginx runs in the foreground with debug logging
+    # Nginx runs in the foreground with debug logging
     command: ["nginx", "-g", "daemon off; error_log /dev/stderr debug;"]
     # Ensure proper shutdown handling
     stop_grace_period: 10s
@@ -36,17 +42,17 @@ services:
           memory: 1G
         reservations:
           memory: 512M
-    # Security options
+    # Security hardening
     security_opt:
       - no-new-privileges:true
     read_only: true
-    # Required writable directories for Nginx
+    # Required writable directories for Nginx as tmpfs
     tmpfs:
       - /var/cache/nginx
       - /var/run
       - /var/log/nginx
       - /tmp
-    # Ensure necessary capabilities for Nginx
+    # Minimal capabilities required for Nginx to run as non-root
     cap_drop:
       - ALL
     cap_add:
@@ -55,6 +61,12 @@ services:
       - SETGID
       - SETUID
       - DAC_OVERRIDE
+    # Logging configuration
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
   family-chat-network:

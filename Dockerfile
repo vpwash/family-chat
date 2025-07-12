@@ -1,13 +1,17 @@
 # Build stage
 FROM node:18-alpine as build
 
+# Set working directory
 WORKDIR /app
+
+# Install build dependencies
+RUN apk add --no-cache python3 make g++
 
 # Copy package files
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm ci --prefer-offline --no-audit --progress=false
 
 # Copy source code
 COPY . .
@@ -16,13 +20,23 @@ COPY . .
 RUN npm run build
 
 # Production stage
-FROM nginx:alpine
+FROM nginx:stable-alpine
 
-# Create directory for Nginx logs and set permissions
-RUN mkdir -p /var/log/nginx/ && \
-    touch /var/log/nginx/access.log /var/log/nginx/error.log && \
-    chmod 644 /var/log/nginx/*.log && \
-    chown -R nginx:nginx /var/log/nginx/
+# Install runtime dependencies
+RUN apk add --no-cache tzdata \
+    && rm -rf /var/cache/apk/*
+
+# Set timezone (optional)
+ENV TZ=UTC
+
+# Create non-root user and group
+RUN addgroup -g 1001 nginx-group \
+    && adduser -D -u 1001 -G nginx-group nginx-user \
+    && mkdir -p /var/cache/nginx /var/run /var/log/nginx \
+    && chown -R nginx-user:nginx-group /var/cache/nginx \
+    && chown -R nginx-user:nginx-group /var/run \
+    && chown -R nginx-user:nginx-group /var/log/nginx \
+    && chown -R nginx-user:nginx-group /var/lib/nginx
 
 # Copy nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
@@ -31,11 +45,25 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 
 # Set proper permissions
-RUN chown -R nginx:nginx /usr/share/nginx/html && \
-    chmod -R 755 /usr/share/nginx/html
+RUN chown -R nginx-user:nginx-group /usr/share/nginx/html \
+    && chmod -R 755 /usr/share/nginx/html \
+    && chmod -R 755 /var/log/nginx \
+    && chmod -R 755 /var/cache/nginx \
+    && chmod -R 755 /var/run
+
+# Remove default nginx static assets
+RUN rm -rf /usr/share/nginx/html/*.md \
+    /usr/share/nginx/html/.* 2>/dev/null || true
 
 # Expose port 80
 EXPOSE 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+  CMD wget -qO- http://localhost/health || exit 1
+
+# Run as non-root user
+USER nginx-user
 
 # Start Nginx with debug logging
 CMD ["nginx", "-g", "daemon off; error_log /dev/stderr debug;"]

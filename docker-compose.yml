@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  family-chat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: family-chat
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    networks:
+      - family-chat-network
+
+networks:
+  family-chat-network:
+    driver: bridge

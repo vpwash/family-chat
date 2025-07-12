@@ -1,0 +1,9 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+            <!-- The main chat bubble shape -->
+            <path fill="#6c47ff" d="M100,5 C47.5,5 5,47.5 5,100 C5,152.5 47.5,195 100,195 C107.5,195 115,193 122,189 C140,205 165,200 165,200 C185,175 195,135 195,100 C195,47.5 152.5,5 100,5 Z" />
+            
+            <!-- The three dots, indicating a message is being typed -->
+            <circle cx="65" cy="100" r="12" fill="white"/>
+            <circle cx="100" cy="100" r="12" fill="white"/>
+            <circle cx="135" cy="100" r="12" fill="white"/>
+        </svg>

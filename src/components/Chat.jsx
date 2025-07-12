@@ -42,6 +42,9 @@ export default function Chat() {
 
   useEffect(() => {
     let messagesSubscription;
+    let retryCount = 0;
+    const maxRetries = 5;
+    const retryDelay = 2000; // 2 seconds
     
     const setupRealtime = async () => {
       try {
@@ -59,84 +62,82 @@ export default function Chat() {
         // First, fetch initial messages
         await fetchMessages();
         
-        // Set up the real-time subscription
-        try {
-          // Create a channel with a unique name
-          const channelName = `realtime:public:messages:${user.id.slice(0, 8)}`;
-          
-          // Create a new channel with minimal configuration
-          messagesSubscription = supabase
-            .channel(channelName)
-            .on(
-              'postgres_changes',
-              {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'messages',
-              },
-              (payload) => {
-                setMessages(prev => {
-                  const exists = prev.some(msg => msg.id === payload.new.id);
-                  return exists ? prev : [...prev, payload.new];
-                });
-              }
-            )
-            .on('system', () => {})
-            .subscribe((status, err) => {
-              if (err) {
-                // If new API fails, try the fallback approach
-                if (status === 'CHANNEL_ERROR') {
-                  setupFallbackSubscription();
-                }
-                return;
+        // Set up the real-time subscription with retry logic
+        const setupSubscription = () => {
+          try {
+            // Create a channel with a unique name
+            const channelName = `realtime:public:messages:${user.id.slice(0, 8)}`;
+            
+            // Create a new channel with minimal configuration
+            const channel = supabase.channel(channelName, {
+              config: {
+                broadcast: { self: true },
+                presence: { key: user.id }
               }
             });
             
-        } catch (error) {
-          // Try fallback if the primary method fails
-          setupFallbackSubscription();
-        }
-        
-        // Fallback subscription method with different configuration
-        const setupFallbackSubscription = () => {
-          try {
-            const fallbackChannel = supabase.channel('fallback-messages-channel')
-              .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'messages' },
-                (payload) => {
-                  if (payload.eventType === 'INSERT') {
-                    setMessages(prev => {
-                      const exists = prev.some(msg => msg.id === payload.new.id);
-                      return exists ? prev : [...prev, payload.new];
-                    });
+            // Subscribe to INSERT events
+            channel
+              .on('broadcast', { event: 'message' }, (payload) => {
+                setMessages(prev => {
+                  const exists = prev.some(msg => msg.id === payload.payload.id);
+                  return exists ? prev : [...prev, payload.payload];
+                });
+              })
+              .subscribe((status, err) => {
+                if (status === 'SUBSCRIBED') {
+                  console.log('Successfully connected to realtime channel');
+                  retryCount = 0; // Reset retry count on successful connection
+                }
+                
+                if (err) {
+                  console.error('Channel error:', err);
+                  // Retry with exponential backoff
+                  if (retryCount < maxRetries) {
+                    retryCount++;
+                    const delay = retryDelay * Math.pow(2, retryCount);
+                    console.log(`Retrying connection in ${delay}ms...`);
+                    setTimeout(setupSubscription, delay);
                   }
                 }
-              )
-              .subscribe(() => {});
+              });
               
-            // Store the fallback subscription for cleanup
-            messagesSubscription = fallbackChannel;
+            return channel;
             
-          } catch (fallbackError) {
-            // Fallback subscription failed
+          } catch (error) {
+            console.error('Error setting up subscription:', error);
+            // Retry with exponential backoff
+            if (retryCount < maxRetries) {
+              retryCount++;
+              const delay = retryDelay * Math.pow(2, retryCount);
+              console.log(`Retrying connection in ${delay}ms...`);
+              setTimeout(setupSubscription, delay);
+            }
+            return null;
           }
         };
         
-        // Set up a ping to keep the connection alive
-        const pingInterval = setInterval(() => {
-          if (messagesSubscription?.state === 'joined') {
-            try {
-              messagesSubscription.send({ type: 'broadcast', event: 'ping', payload: {} });
-            } catch (pingError) {
-              console.error('Ping failed:', pingError);
-            }
-          }
-        }, 30000);
+        // Initial subscription setup
+        messagesSubscription = setupSubscription();
         
-        // Clean up interval and subscription on unmount
+        // Set up a simple keep-alive mechanism
+        const keepAliveInterval = setInterval(() => {
+          if (messagesSubscription?.state === 'joined') {
+            // Send a simple message to keep the connection alive
+            messagesSubscription.send({
+              type: 'broadcast',
+              event: 'ping',
+              payload: {}
+            }).catch(err => console.error('Keep-alive ping failed:', err));
+          } else if (!messagesSubscription || messagesSubscription.state !== 'joining') {
+            // Try to reconnect if not already trying
+            messagesSubscription = setupSubscription();
+          }
+        }, 60000); // Ping every minute
+        
+        // Clean up on unmount
         return () => {
-          clearInterval(pingInterval);
+          clearInterval(keepAliveInterval);
           if (messagesSubscription) {
             try {
               supabase.removeChannel(messagesSubscription);
@@ -145,9 +146,16 @@ export default function Chat() {
             }
           }
         };
-          
+        
       } catch (error) {
         console.error('Error in setupRealtime:', error);
+        // Retry the entire setup if something goes wrong
+        if (retryCount < maxRetries) {
+          retryCount++;
+          const delay = retryDelay * Math.pow(2, retryCount);
+          console.log(`Retrying setup in ${delay}ms...`);
+          setTimeout(setupRealtime, delay);
+        }
       }
     };
     

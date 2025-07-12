@@ -1,8 +1,21 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Directly use environment variables - they will be replaced during build
-const supabaseUrl = 'https://eappkkxvdtfrhoupmcxy.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVhcHBra3h2ZHRmcmhvdXBtY3h5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE4NTEzNTIsImV4cCI6MjA2NzQyNzM1Mn0.GOp7y2yE2S97de1ZyoBN5CZ4t_FmxfHCyq3GrTFcrb4';
+// Get Supabase URL and Anon Key from environment variables
+const getEnvVar = (key) => {
+  // First try Vite's import.meta.env
+  if (import.meta.env[`VITE_${key}`]) {
+    return import.meta.env[`VITE_${key}`];
+  }
+  // Then try window.env (injected by Vite)
+  if (window.env && window.env[`VITE_${key}`]) {
+    return window.env[`VITE_${key}`];
+  }
+  console.error(`Missing required environment variable: VITE_${key}`);
+  return '';
+};
+
+const supabaseUrl = getEnvVar('SUPABASE_URL');
+const supabaseAnonKey = getEnvVar('SUPABASE_ANON_KEY');
 
 // Log the environment for debugging
 console.log('Initializing Supabase with URL:', 

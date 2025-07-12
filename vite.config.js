@@ -1,7 +1,7 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
-import envPlugin from './vite-env-plugin';
+import { createHtmlPlugin } from 'vite-plugin-html';
 
 // https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
@@ -10,6 +10,10 @@ export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   
   return {
+    define: {
+      'process.env': {}
+    },
+    envPrefix: 'VITE_',
     base: '/',
     define: {
       // Make environment variables available to the client-side code
@@ -17,8 +21,16 @@ export default defineConfig(({ command, mode }) => {
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY),
     },
     plugins: [
-      envPlugin(),
       react(),
+      createHtmlPlugin({
+        minify: true,
+        inject: {
+          data: {
+            VITE_SUPABASE_URL: env.VITE_SUPABASE_URL,
+            VITE_SUPABASE_ANON_KEY: env.VITE_SUPABASE_ANON_KEY
+          }
+        }
+      }),
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['favicon.svg', 'robots.txt', 'apple-touch-icon.png'],

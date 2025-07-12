@@ -27,15 +27,18 @@
     
     <!-- Environment Configuration -->
     <script>
-      // Fallback environment variables (will be replaced during build)
+      // Injected by Vite during build
       window.env = {
-        VITE_SUPABASE_URL: '%VITE_SUPABASE_URL%',
-        VITE_SUPABASE_ANON_KEY: '%VITE_SUPABASE_ANON_KEY%'
+        VITE_SUPABASE_URL: '<%= VITE_SUPABASE_URL %>',
+        VITE_SUPABASE_ANON_KEY: '<%= VITE_SUPABASE_ANON_KEY %>'
       };
+      
+      // Log environment for debugging
+      console.log('Environment variables initialized:', {
+        url: window.env.VITE_SUPABASE_URL ? '***URL SET***' : 'MISSING URL',
+        key: window.env.VITE_SUPABASE_ANON_KEY ? '***KEY SET***' : 'MISSING KEY'
+      });
     </script>
-    
-    <!-- Load environment-specific config -->
-    <script src="/env-config.js"></script>
   </head>
   <body>
     <div id="root"></div>

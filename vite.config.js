@@ -3,7 +3,8 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  base: command === 'build' ? '/' : '/',
   plugins: [
     react(),
     VitePWA({
@@ -36,6 +37,18 @@ export default defineConfig({
     })
   ],
   server: {
-    host: true
+    host: true,
+    port: 3000,
+    strictPort: true,
+    hmr: {
+      port: 3000,
+      clientPort: 3000,
+      host: 'localhost',
+      path: '/ws'
+    }
+  },
+  preview: {
+    port: 3000,
+    strictPort: true
   }
-})
+}))

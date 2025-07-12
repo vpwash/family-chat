@@ -84,4 +84,4 @@ USER nginx-user
 ENV NGINX_PID_FILE=/tmp/nginx/nginx.pid
 
 # Start Nginx with custom configuration
-CMD ["nginx", "-g", "daemon off; error_log /dev/stderr debug; pid /tmp/nginx/nginx.pid;"]
+CMD ["nginx", "-g", "daemon off; error_log /dev/stderr debug;"]

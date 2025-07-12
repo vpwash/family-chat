@@ -13,8 +13,10 @@ services:
       - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
       - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
       - NODE_ENV=production
+      - PORT=80
+    user: "1001:1001"  # Run as non-root user
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -38,10 +40,21 @@ services:
     security_opt:
       - no-new-privileges:true
     read_only: true
+    # Required writable directories for Nginx
     tmpfs:
-      - /tmp
+      - /var/cache/nginx
       - /var/run
-      - /var/tmp
+      - /var/log/nginx
+      - /tmp
+    # Ensure necessary capabilities for Nginx
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - NET_BIND_SERVICE
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
 
 networks:
   family-chat-network:

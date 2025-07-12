@@ -29,10 +29,13 @@ RUN apk add --no-cache tzdata \
 # Set timezone (optional)
 ENV TZ=UTC
 
+# Create required directories and set permissions
+RUN mkdir -p /var/cache/nginx /var/run /var/log/nginx /var/lib/nginx \
+    && chmod -R 755 /var/cache/nginx /var/run /var/log/nginx /var/lib/nginx
+
 # Create non-root user and group
 RUN addgroup -g 1001 nginx-group \
     && adduser -D -u 1001 -G nginx-group nginx-user \
-    && mkdir -p /var/cache/nginx /var/run /var/log/nginx \
     && chown -R nginx-user:nginx-group /var/cache/nginx \
     && chown -R nginx-user:nginx-group /var/run \
     && chown -R nginx-user:nginx-group /var/log/nginx \

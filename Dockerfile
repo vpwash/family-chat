@@ -47,9 +47,17 @@ RUN addgroup -g 1001 nginx-group \
     && chmod -R 755 /var/lib/nginx \
     && chmod -R 755 /tmp/nginx
 
-# Copy nginx config
-COPY nginx.conf /etc/nginx/nginx.conf
-COPY --chown=nginx-user:nginx-group nginx.conf /etc/nginx/conf.d/default.conf
+# Create necessary directories for Nginx
+RUN mkdir -p /etc/nginx/sites-enabled /etc/nginx/conf.d
+
+# Copy main Nginx configuration
+COPY nginx-custom.conf /etc/nginx/nginx.conf
+
+# Copy server configuration
+COPY nginx.conf /etc/nginx/sites-enabled/default.conf
+
+# Remove default config to avoid conflicts
+RUN rm -f /etc/nginx/conf.d/default.conf
 
 # Copy built assets from builder stage
 COPY --from=builder --chown=nginx-user:nginx-group /app/dist /usr/share/nginx/html

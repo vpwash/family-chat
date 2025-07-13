@@ -11,15 +11,13 @@ export default defineConfig(({ command, mode }) => {
   
   return {
     define: {
-      'process.env': {}
+      'process.env': {},
+      // Make environment variables available to the client-side code
+      'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL),
+      'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY)
     },
     envPrefix: 'VITE_',
     base: '/',
-    define: {
-      // Make environment variables available to the client-side code
-      'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL),
-      'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY),
-    },
     plugins: [
       react(),
       createHtmlPlugin({

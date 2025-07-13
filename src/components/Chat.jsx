@@ -41,7 +41,7 @@ export default function Chat() {
   };
 
   useEffect(() => {
-    let messagesSubscription;
+    let subscription;
     let retryCount = 0;
     const maxRetries = 5;
     const retryDelay = 2000; // 2 seconds
@@ -62,88 +62,48 @@ export default function Chat() {
         // First, fetch initial messages
         await fetchMessages();
         
-        // Set up the real-time subscription with retry logic
-        const setupSubscription = () => {
-          try {
-            // Create a channel with a unique name
-            const channelName = `realtime:public:messages:${user.id.slice(0, 8)}`;
-            
-            // Create a new channel with minimal configuration
-            const channel = supabase.channel(channelName, {
-              config: {
-                broadcast: { self: true },
-                presence: { key: user.id }
-              }
-            });
-            
-            // Subscribe to INSERT events
-            channel
-              .on('broadcast', { event: 'message' }, (payload) => {
-                setMessages(prev => {
-                  const exists = prev.some(msg => msg.id === payload.payload.id);
-                  return exists ? prev : [...prev, payload.payload];
-                });
-              })
-              .subscribe((status, err) => {
-                if (status === 'SUBSCRIBED') {
-                  console.log('Successfully connected to realtime channel');
-                  retryCount = 0; // Reset retry count on successful connection
-                }
-                
-                if (err) {
-                  console.error('Channel error:', err);
-                  // Retry with exponential backoff
-                  if (retryCount < maxRetries) {
-                    retryCount++;
-                    const delay = retryDelay * Math.pow(2, retryCount);
-                    console.log(`Retrying connection in ${delay}ms...`);
-                    setTimeout(setupSubscription, delay);
-                  }
-                }
+        // Set up the real-time subscription
+        subscription = supabase
+          .channel('public:messages')
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'messages',
+            },
+            (payload) => {
+              console.log('New message received:', payload);
+              setMessages(prev => {
+                // Check if message already exists to prevent duplicates
+                const exists = prev.some(msg => msg.id === payload.new.id);
+                return exists ? prev : [...prev, payload.new];
               });
-              
-            return channel;
-            
-          } catch (error) {
-            console.error('Error setting up subscription:', error);
-            // Retry with exponential backoff
-            if (retryCount < maxRetries) {
-              retryCount++;
-              const delay = retryDelay * Math.pow(2, retryCount);
-              console.log(`Retrying connection in ${delay}ms...`);
-              setTimeout(setupSubscription, delay);
             }
-            return null;
-          }
-        };
-        
-        // Initial subscription setup
-        messagesSubscription = setupSubscription();
-        
-        // Set up a simple keep-alive mechanism
-        const keepAliveInterval = setInterval(() => {
-          if (messagesSubscription?.state === 'joined') {
-            // Send a simple message to keep the connection alive
-            messagesSubscription.send({
-              type: 'broadcast',
-              event: 'ping',
-              payload: {}
-            }).catch(err => console.error('Keep-alive ping failed:', err));
-          } else if (!messagesSubscription || messagesSubscription.state !== 'joining') {
-            // Try to reconnect if not already trying
-            messagesSubscription = setupSubscription();
-          }
-        }, 60000); // Ping every minute
+          )
+          .subscribe((status, err) => {
+            if (status === 'SUBSCRIBED') {
+              console.log('Successfully subscribed to messages table changes');
+              retryCount = 0; // Reset retry count on successful connection
+            }
+            
+            if (err) {
+              console.error('Subscription error:', err);
+              // Retry with exponential backoff
+              if (retryCount < maxRetries) {
+                retryCount++;
+                const delay = retryDelay * Math.pow(2, retryCount);
+                console.log(`Retrying subscription in ${delay}ms...`);
+                setTimeout(setupRealtime, delay);
+              }
+            }
+          });
         
         // Clean up on unmount
         return () => {
-          clearInterval(keepAliveInterval);
-          if (messagesSubscription) {
-            try {
-              supabase.removeChannel(messagesSubscription);
-            } catch (e) {
-              console.error('Error removing channel:', e);
-            }
+          if (subscription) {
+            console.log('Unsubscribing from messages table changes');
+            supabase.removeChannel(subscription);
           }
         };
         
@@ -163,9 +123,9 @@ export default function Chat() {
     
     // Cleanup function
     return () => {
-      if (messagesSubscription) {
+      if (subscription) {
         console.log('Unsubscribing from real-time updates');
-        supabase.removeChannel(messagesSubscription);
+        supabase.removeChannel(subscription);
       }
     };
   }, [navigate]);

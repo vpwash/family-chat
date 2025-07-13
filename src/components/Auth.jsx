@@ -46,7 +46,26 @@ export default function AuthComponent() {
             providers={['google', 'facebook']}
             socialLayout="horizontal"
             redirectTo={window.location.origin}
+            view="sign_in"
+            showLinks={false}
+            localization={{
+              variables: {
+                sign_in: {
+                  email_label: 'Email',
+                  password_label: 'Your Password',
+                  email_input_placeholder: 'Your email address',
+                  password_input_placeholder: 'Your password',
+                  button_label: 'Sign in',
+                  loading_button_label: 'Signing in ...',
+                  social_provider_text: 'Sign in with {{provider}}',
+                  link_text: 'New user? Sign ups are currently by invitation only',
+                },
+              },
+            }}
           />
+          <Typography variant="body2" color="textSecondary" align="center" sx={{ mt: 2 }}>
+            Don't have an account? Please contact the administrator for access.
+          </Typography>
         </Box>
       </Container>
     );

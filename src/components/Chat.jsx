@@ -52,7 +52,7 @@ export default function Chat() {
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         
         if (userError || !user) {
-          // User not authenticated, redirect to login
+          console.error('User not authenticated, redirecting to login');
           navigate('/');
           return;
         }
@@ -62,9 +62,24 @@ export default function Chat() {
         // First, fetch initial messages
         await fetchMessages();
         
-        // Set up the real-time subscription
-        subscription = supabase
-          .channel('public:messages')
+        // Set up the real-time subscription with better error handling
+        const channel = supabase
+          .channel('public:messages', {
+            config: {
+              presence: {
+                key: 'public:messages',
+              },
+              broadcast: {
+                self: true,
+              },
+            },
+          })
+          .on('presence', { event: 'sync' }, () => {
+            console.log('Presence state synchronized');
+          })
+          .on('broadcast', { event: 'test' }, (payload) => {
+            console.log('Broadcast received:', payload);
+          })
           .on(
             'postgres_changes',
             {
@@ -74,7 +89,7 @@ export default function Chat() {
             },
             (payload) => {
               console.log('New message received:', payload);
-              setMessages(prev => {
+              setMessages((prev) => {
                 // Check if message already exists to prevent duplicates
                 const exists = prev.some(msg => msg.id === payload.new.id);
                 return exists ? prev : [...prev, payload.new];
@@ -82,22 +97,53 @@ export default function Chat() {
             }
           )
           .subscribe((status, err) => {
-            if (status === 'SUBSCRIBED') {
-              console.log('Successfully subscribed to messages table changes');
-              retryCount = 0; // Reset retry count on successful connection
+            console.log('Subscription status:', status);
+            
+            switch (status) {
+              case 'SUBSCRIBED':
+                console.log('Successfully subscribed to messages table changes');
+                retryCount = 0; // Reset retry count on successful connection
+                break;
+                
+              case 'CHANNEL_ERROR':
+                console.error('Channel error, attempting to reconnect...');
+                handleReconnect();
+                break;
+                
+              case 'TIMED_OUT':
+                console.warn('Connection timed out, attempting to reconnect...');
+                handleReconnect();
+                break;
+                
+              case 'CLOSED':
+                console.warn('Connection closed, attempting to reconnect...');
+                handleReconnect();
+                break;
             }
             
             if (err) {
               console.error('Subscription error:', err);
-              // Retry with exponential backoff
-              if (retryCount < maxRetries) {
-                retryCount++;
-                const delay = retryDelay * Math.pow(2, retryCount);
-                console.log(`Retrying subscription in ${delay}ms...`);
-                setTimeout(setupRealtime, delay);
-              }
+              handleReconnect();
             }
           });
+        
+        // Store the subscription for cleanup
+        subscription = channel;
+        
+        // Helper function to handle reconnection
+        const handleReconnect = () => {
+          if (retryCount < maxRetries) {
+            retryCount++;
+            const delay = Math.min(
+              retryDelay * Math.pow(2, retryCount - 1),
+              30000 // Max 30 seconds delay
+            );
+            console.log(`Attempting to reconnect in ${delay}ms (attempt ${retryCount}/${maxRetries})...`);
+            setTimeout(setupRealtime, delay);
+          } else {
+            console.error('Max retry attempts reached. Please refresh the page to try again.');
+          }
+        };
         
         // Clean up on unmount
         return () => {
@@ -105,7 +151,7 @@ export default function Chat() {
             console.log('Unsubscribing from messages table changes');
             supabase.removeChannel(subscription);
           }
-        };
+        };  
         
       } catch (error) {
         console.error('Error in setupRealtime:', error);
@@ -138,7 +184,7 @@ export default function Chat() {
     console.log('Fetching messages...');
     const { data, error, status } = await supabase
       .from('messages')
-      .select('*')
+      .select('id, created_at, content, user_id')
       .order('created_at', { ascending: true });
     
     console.log('Messages fetch status:', status);

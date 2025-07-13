@@ -44,20 +44,34 @@ const getSupabase = () => {
   }
 
   try {
-    // Initialize Supabase client
+    // Initialize Supabase client with enhanced WebSocket configuration
     supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
-        storage: window.localStorage
+        storage: window.localStorage,
+        flowType: 'pkce' // Use PKCE flow for better security and reliability
       },
       realtime: {
-        eventsPerSecond: 10
-      },
-      global: {
-        // Ensure fetch is properly bound to the global scope
-        fetch: (...args) => fetch(...args)
+        params: {
+          eventsPerSecond: 10,
+          // Add reconnection settings
+          reconnect: true,
+          // Add timeout for realtime subscription
+          timeout: 10000
+        },
+        // Add WebSocket options
+        websocket: {
+          reconnect: true,
+          timeout: 30000,
+          delay: 1000
+        },
+        // Add global fetch configuration
+        global: {
+          // Ensure fetch is properly bound to the global scope
+          fetch: (...args) => fetch(...args)
+        }
       }
     });
 
